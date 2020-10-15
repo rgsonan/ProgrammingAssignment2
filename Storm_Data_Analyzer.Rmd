@@ -1,0 +1,203 @@
+The most harmful weather events which causes problems for public health and economy in US communities and municipalities.
+-----------------------------------
+
+## Synopsis
+
+In this report we aim to describe the harmful weather events which causes problems for public health and economy in US communities and municipalities. This analysis shows that 96979 persons have been injured (91346) or killed (5633) by the most harmful events which are the TORNADOES. The second one is the EXCESSIVE HEAT (1903) with respect to deaths and TSTM WIND ( 6957 ) with respect to injuries. You can see the top 15 in the graphs. This analysis also shows the events with the most economic consequences over United States are the FLOODS with 144 billion dollars of property damage and 56 billion dollars of crop damanage with the total of 150 billion Dollars.
+
+## Data Processing 
+
+From the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database, we obtained data on Storms and other severe weather events which can cause both public health and economic problems for communities and municipalities.
+
+```{r env setup, echo=FALSE}
+setwd("C:/Users/a448166/Desktop/R-Course/Assignments/Project6")
+```
+
+Loading Libraries
+
+```{r loading_libraries}
+library(ggplot2)
+library(cowplot)
+library(plyr)
+library(dplyr)
+```
+
+### Loading and Processing the Raw Data 
+
+We first read the raw comma-separated-value file compressed via the bzip2 algorithm file. 
+
+```{r loading_processing, cache=TRUE}
+filename <- "StormDataFile.csv.bz2"
+
+if (!file.exists(filename)){
+  download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2","./StormDataFile.csv.bz2")
+}
+weather_event_data <- read.csv("StormDataFile.csv.bz2")
+```
+
+After reading, we check the number of observations(902297) and variables(37), also view first 3 rows from the dataset.
+
+```{r few_rows, cache=TRUE}
+dim(weather_event_data)
+head(weather_event_data,3)
+```
+
+we check the structure of the dataset.
+
+```{r structure, cache=TRUE}
+str(weather_event_data)
+```
+
+### Reading required attributes - types of events, population health and economic consequences
+
+We start our analysis to find out the most harmful events related to the health of the population
+
+Interested columns are EVTYPE, FATALITIES and INJURIES which contains the Event Type, fatalities and injuries. Here we extract that column and print a brief summary.
+
+```{r health_issues_full, cache=TRUE}
+health_issues <- weather_event_data[,c('EVTYPE','FATALITIES','INJURIES')]
+head(health_issues)
+
+summary(health_issues$FATALITIES)
+summary(health_issues$INJURIES)
+```
+
+we see rows with no health issues  
+we filter the rows with no health issues
+
+```{r health_issues_filtered, cache=TRUE}
+health_issues_data <- filter(health_issues, FATALITIES > 0 | INJURIES > 0)
+dim(health_issues_data)
+
+summary(health_issues_data$FATALITIES)
+summary(health_issues_data$INJURIES)
+```
+
+## Results 
+
+we calculate sum of FATALITIES and INJURIES for every EVTYPE
+
+```{r summarize_health, cache=TRUE}
+health_issues_type <- summarize(group_by(health_issues_data,EVTYPE), deaths = sum(FATALITIES,na.rm = TRUE), injuries = sum(INJURIES,na.rm = TRUE))
+```
+
+Now we identify the top 15 events with respect to deaths
+
+```{r top_15_deaths,cache=TRUE}
+deaths_lst <- health_issues_type[order(health_issues_type$deaths, decreasing = TRUE),]
+head(deaths_lst,15)
+```
+
+**TORNADO is the most harmful event with respect to deaths (5,633)**
+
+we identify the top 15 events with respect to injuries
+
+```{r top_15_injuries,cache=TRUE}
+injuries_lst <- health_issues_type[order(health_issues_type$injuries, decreasing = TRUE),]
+head(injuries_lst,15)
+```
+
+**TORNADO is the most harmful event with respect to injuries (91346)**
+
+In order to show top harmful events with respect to deaths and injuries, we can make histogram for all event types
+
+```{r plot_deaths_injuries}
+plot1 <- ggplot(head(deaths_lst,15), aes(x=EVTYPE,y=deaths)) + geom_col(fill="coral",size=1.5) + labs(x="Event Type",y="Total Deaths") + theme_bw() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+plot2 <- ggplot(head(injuries_lst,15), aes(x=EVTYPE,y=,injuries)) + geom_col(fill="blue",size=1.5) + labs(x="Event Type",y="Total Injuries") + theme_bw() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+plot_grid(plot1, plot2, labels = c('',''), align = "h")
+```
+
+*Figure 1 : Top 15 harmful Events for Deaths and Injuries***
+
+We then move to our next analysis to find out the most harmful events related to the economic consequences
+
+Interested columns are EVTYPE, PROPDMG, PROPDMGEXP,CROPDMG  and CROPDMGEXP which contains the Event Type, property and crop damage details. Here we extract that column and print a brief summary.
+
+```{r economic_issues_full, cache=TRUE}
+economic_issues <- weather_event_data[,c('EVTYPE', 'PROPDMG', 'PROPDMGEXP', 'CROPDMG', 'CROPDMGEXP')]
+head(economic_issues)
+
+summary(economic_issues$PROPDMG)
+summary(economic_issues$CROPDMG)
+```
+
+we see rows with no damage costs  
+we filter the rows with no damage costs
+
+```{r economic_issues_filtered, cache=TRUE}
+economic_issues_data <- filter(economic_issues, PROPDMG > 0 | CROPDMG > 0)
+dim(economic_issues_data)
+
+unique(economic_issues$PROPDMGEXP)
+unique(economic_issues$CROPDMGEXP)
+```
+
+The variables PROPDMGEXP and CROPDMGEXP have the factor of multiplicity of the variables PROPDMG and CROPDMG with the values:
+
+-H      -> 1e2
+-K      -> 1e3
+-M,m    -> 1e6
+-B      -> 1e9
+-+,0    -> 1
+-5      -> 1e5
+-6      -> 1e6
+-4      -> 1e4
+-2      -> 1e2
+-3      -> 1e3
+-7      -> 1e7
+
+we calculate the total property damage costs using PROPDMGEXP and PROPDMG
+
+```{r PROPDMGNEW}
+t <- mapvalues(economic_issues_data$PROPDMGEXP,
+c("K","M","","B","m","+","0","5","6","4","2","3","h","7","H","-"), 
+c(1e3,1e6,1,1e9,1e6,1,1,1e5,1e6,1e4,1e2,1e3,1,1e7,1e2,  1))
+
+economic_issues_data$PROPDMGNEW <- as.numeric(t) * economic_issues_data$PROPDMG
+```
+
+we calculate the total crop damage costs using CROPDMGEXP and CROPDMG
+
+```{r CROPDMGNEW}
+t <- mapvalues(economic_issues_data$CROPDMGEXP,
+c("","M","K","m","B","?","0","k"), 
+c(1,1e6,1e3,1e6,1e9,1,1,1e3))
+
+economic_issues_data$CROPDMGNEW <- as.numeric(t) * economic_issues_data$CROPDMG
+```
+
+we calculate sum of property damage costs group by EVTYPE
+
+```{r summarize_damage, cache=TRUE}
+economic_issues_type <- summarize(group_by(economic_issues_data,EVTYPE), prop = sum(PROPDMGNEW,na.rm = TRUE), crop = sum(CROPDMGNEW,na.rm = TRUE))
+```
+
+we find the top 15 events of property damage costs
+
+```{r top_15_prop,cache=TRUE}
+prop_damage_lst <- economic_issues_type[order(economic_issues_type$prop, decreasing = TRUE),]
+head(prop_damage_lst,15)
+```
+
+**FLOOD is the most harmful event with respect to property damage costs**
+
+we find the top 15 events of crop damage costs
+
+```{r top_15_crop,cache=TRUE}
+crop_damage_lst <- economic_issues_type[order(economic_issues_type$crop, decreasing = TRUE),]
+head(crop_damage_lst,15)
+```
+
+**DROUGHT is the most harmful event with respect to crop damage costs**
+
+```{r}
+plot1 <- ggplot(head(prop_damage_lst,15), aes(x=EVTYPE,y=prop)) + geom_col(fill="violet",size=1.5) + labs(x="Event Type",y="Total Property Damage Costs") + theme_bw() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+plot2 <- ggplot(head(crop_damage_lst,15), aes(x=EVTYPE,y=,crop)) + geom_col(fill="orange",size=1.5) + labs(x="Event Type",y="Total Crop Damager Costs") + theme_bw() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+plot_grid(plot1, plot2, labels = c('',''), align = "h")
+```
+
+*Figure 2 : Top 15 harmful Events for property and crop Damage Costs*
